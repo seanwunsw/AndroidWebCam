@@ -144,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopServer(){
         if (mjpegServer != null) {
-            mjpegServer.stop();
+            mjpegServer.interrupt();
             mjpegServer = null;
             Log.d(TAG, "MJPEG server stoped");
         }
