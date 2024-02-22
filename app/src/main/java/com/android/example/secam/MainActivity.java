@@ -2,9 +2,7 @@ package com.android.example.secam;
 
 import static android.content.ContentValues.TAG;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.PopupMenu;
 import androidx.camera.core.Camera;
-import androidx.camera.core.CameraControl;
 import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
@@ -18,43 +16,26 @@ import androidx.core.content.ContextCompat;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
-import android.media.Image;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
-
-import android.util.Size;
-import android.view.Surface;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.Manifest;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.common.util.concurrent.ListenableFuture;
-
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-
 import java.util.concurrent.*;
-import android.view.OrientationEventListener;
 
 
 public class MainActivity extends AppCompatActivity {
 
     private byte[] latestJpegFrameData = null;
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private PreviewView mPreviewView;
     private TextView ipTV;
     private ListenableFuture<ProcessCameraProvider> mCameraProviderFuture;
-    private Executor mExecutor = Executors.newSingleThreadExecutor();
     private CameraSelector mCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
     private static final int MY_PERMISSIONS_REQUEST_CAMERA = 100;
     private FloatingActionButton fabcam,fabst,fabsetting,fab;
@@ -62,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean started = false;
     private MjpegServer mjpegServer;
     private Camera camera;
-    private OrientationEventListener orientationEventListener;
+
 
 
     @Override
@@ -144,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopServer(){
         if (mjpegServer != null) {
-            mjpegServer.interrupt();
+            mjpegServer.cancel(true);
             mjpegServer = null;
             Log.d(TAG, "MJPEG server stoped");
         }
@@ -153,53 +134,10 @@ public class MainActivity extends AppCompatActivity {
     private void startServer() {
         try {
             mjpegServer = new MjpegServer();
-            mjpegServer.start();
+            mjpegServer.execute();
         }catch (Exception e){
             e.printStackTrace();
         }
-        /*
-            mjpegServer = new NanoHTTPD(8080) {
-                @Override
-                public Response serve(IHTTPSession session) {
-                    try {
-                        String boundary = "frame";
-                        String mimeType = "multipart/x-mixed-replace; boundary=" + boundary;
-
-                        Response res = null;
-                        if(latestJpegFrameData!= null) {
-
-                            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                            stream.write(("--" + boundary + "\r\n").getBytes());
-                            stream.write(("Content-Type: image/jpeg\r\n").getBytes());
-                            //
-                            stream.write(("Content-Length: " +  latestJpegFrameData.length + "\r\n\r\n").getBytes());
-                            stream.write(latestJpegFrameData);//photo change
-                            //
-                            ByteArrayInputStream input = new ByteArrayInputStream(stream.toByteArray());
-                            res = newChunkedResponse(Response.Status.OK, mimeType, input);
-                            res.addHeader("Cache-Control", "no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0");
-                            res.addHeader("Cache-Control", "private");
-                            res.addHeader("Pragma", "no-cache");
-                            res.addHeader("Expires", "-1");
-                            //return res;
-                        }return res;
-                    } catch (Exception e) {
-                        Log.e(TAG, "server: " + e);
-                        return newFixedLengthResponse("error: " + e.getMessage());
-                    }
-                    //return newFixedLengthResponse("The stream is not yet started");
-                }
-            };
-
-
-        try {
-            //mjpegServer.start();
-            Log.d(TAG, "MJPEG server started");
-        } catch (IOException e) {
-            Log.e(TAG, "startServer: "+e.getMessage() );
-        }
-
-         */
     }
     private void changeCamera(){
         CameraSelector newCameraSelector = mCameraSelector == CameraSelector.DEFAULT_BACK_CAMERA
@@ -229,7 +167,9 @@ public class MainActivity extends AppCompatActivity {
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                         .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetResolution(new Size(1080, 1920))
+                        //.setTargetResolution(new Size(1080, 1920))
+                        //.setTargetResolution(new Size(720, 1280))
+                        //.setOutputImageRotationEnabled(true)
                         .build();
                 imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this),this::processImage);
 
@@ -265,8 +205,8 @@ public class MainActivity extends AppCompatActivity {
             latestJpegFrameData = jpegStream.toByteArray();
             mjpegServer.setLatestJpegFrameData(latestJpegFrameData);
             //jpegServer.setJPGframedata(latestJpegFrameData);
-
-        }image.close();
+        }
+        image.close();
     }
 
     // Handle camera permission request result
