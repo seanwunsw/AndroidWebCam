@@ -12,12 +12,12 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
-import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Size;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,14 +44,11 @@ public class MainActivity extends AppCompatActivity {
     private MjpegServer mjpegServer;
     private Camera camera;
 
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Get a reference to the PreviewView
         mPreviewView = findViewById(R.id.previewView);
         ipTV = findViewById(R.id.ipTV);
         String ip = "IP address:" + NetworkHelper.getIPAddress(true);
@@ -62,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
         fabcam = findViewById(R.id.fabcam);
         fabsetting = findViewById(R.id.fabsetting);
         fab = findViewById(R.id.fab);
+
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -101,10 +99,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Initialize the CameraProviderFuture
         mCameraProviderFuture = ProcessCameraProvider.getInstance(this);
 
-        // Check for camera permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
@@ -119,9 +115,7 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception e){e.printStackTrace();}
     }
 
-
     //--------------------------end of oncreate---------------------
-
 
     private void stopServer(){
         if (mjpegServer != null) {
@@ -147,10 +141,8 @@ public class MainActivity extends AppCompatActivity {
         startCameraPreview();
     }
 
-    // Start the camera preview
     private void startCameraPreview() {
         // Wait for the CameraProvider to be available
-
         mCameraProviderFuture.addListener(() -> {
             try {
                 // Get the CameraProvider
@@ -159,21 +151,20 @@ public class MainActivity extends AppCompatActivity {
                 // Must unbind the use-cases before rebinding them
                 cameraProvider.unbindAll();
 
-                // Set up the Preview use case
-                @SuppressLint("RestrictedApi")
-                Preview preview = new Preview.Builder().setCameraSelector(mCameraSelector).build();
+                // Binding the preview surface
+                Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(mPreviewView.getSurfaceProvider());
 
                 // Set up the ImageAnalysis use case
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                         .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         //.setTargetResolution(new Size(1080, 1920))
-                        //.setTargetResolution(new Size(720, 1280))
-                        //.setOutputImageRotationEnabled(true)
+                        .setTargetResolution(new Size(720, 1280))
+                        .setOutputImageRotationEnabled(true)
                         .build();
                 imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this),this::processImage);
 
-                preview.setSurfaceProvider(mPreviewView.getSurfaceProvider());
                 camera = cameraProvider.bindToLifecycle(this, mCameraSelector, preview, imageAnalysis);
 
             } catch (ExecutionException | InterruptedException e) {
@@ -198,13 +189,20 @@ public class MainActivity extends AppCompatActivity {
             rgbaBuffer.get(rgbaData, 0, rgbaSize);
 
             // Convert RGBA to JPEG
-            Bitmap bitmap = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.ARGB_8888);
-            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(rgbaData));
-            ByteArrayOutputStream jpegStream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, jpegStream);
-            latestJpegFrameData = jpegStream.toByteArray();
-            mjpegServer.setLatestJpegFrameData(latestJpegFrameData);
-            //jpegServer.setJPGframedata(latestJpegFrameData);
+            Bitmap bitmap = null;
+            try{
+                bitmap = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.ARGB_8888);
+                bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(rgbaData));
+                ByteArrayOutputStream jpegStream = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, jpegStream);
+                latestJpegFrameData = jpegStream.toByteArray();
+                mjpegServer.setLatestJpegFrameData(latestJpegFrameData);
+            }finally{
+                if(bitmap != null && !bitmap.isRecycled()){
+                    bitmap.recycle();
+                }
+            }
+
         }
         image.close();
     }

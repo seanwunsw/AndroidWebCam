@@ -2,7 +2,6 @@ package com.android.example.secam;
 
 import android.os.AsyncTask;
 import android.util.Log;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
@@ -10,14 +9,27 @@ import java.net.Socket;
 
 public class MjpegServer extends AsyncTask<Void, Void, Void> {
     private static final String TAG = "MjpegServerTask";
-    private byte[] latestJpegFrameData = null;
+    private volatile byte[] latestJpegFrameData = null;
     private InputStream inputStream = null;
     private OutputStream outputStream = null;
 
+    private int portNumber,framePerSecond;
+
+    public MjpegServer() {
+        portNumber = 8080;
+    }
+    public MjpegServer(int portNumber) {
+        this.portNumber = portNumber;
+    }
+
+    public MjpegServer(int portNumber,int framePerSecond) {
+        this.portNumber = portNumber;
+        this.framePerSecond = framePerSecond;
+    }
     @Override
     protected Void doInBackground(Void... voids) {
         try {
-            ServerSocket server = new ServerSocket(8080);
+            ServerSocket server = new ServerSocket(portNumber);
             while (!isCancelled()) {
                 Socket socket = server.accept();
                 new VideoFeedHandler(socket).start();
