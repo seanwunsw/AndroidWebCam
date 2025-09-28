@@ -2,6 +2,7 @@ package com.android.example.secam;
 
 import android.os.AsyncTask;
 import android.util.Log;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
@@ -13,19 +14,21 @@ public class MjpegServer extends AsyncTask<Void, Void, Void> {
     private InputStream inputStream = null;
     private OutputStream outputStream = null;
 
-    private int portNumber,framePerSecond;
+    private int portNumber, framePerSecond;
 
     public MjpegServer() {
         portNumber = 8080;
     }
+
     public MjpegServer(int portNumber) {
         this.portNumber = portNumber;
     }
 
-    public MjpegServer(int portNumber,int framePerSecond) {
+    public MjpegServer(int portNumber, int framePerSecond) {
         this.portNumber = portNumber;
         this.framePerSecond = framePerSecond;
     }
+
     @Override
     protected Void doInBackground(Void... voids) {
         try {
@@ -47,9 +50,14 @@ public class MjpegServer extends AsyncTask<Void, Void, Void> {
 
     private class VideoFeedHandler extends Thread {
         private Socket socket;
+        private int frameInterval;
+        private long lastFrameTime;
 
         public VideoFeedHandler(Socket socket) {
             this.socket = socket;
+                        // Calculate frame interval in milliseconds
+            this.frameInterval = framePerSecond > 0 ? (1000 / framePerSecond) : 42;
+            this.lastFrameTime = System.currentTimeMillis();
         }
 
         @Override
@@ -59,28 +67,35 @@ public class MjpegServer extends AsyncTask<Void, Void, Void> {
                 outputStream = socket.getOutputStream();
 
                 outputStream.write(
-                        ("HTTP/1.0 200 OK\r\n"+
-                                "Connection: close\r\n"+
+                        ("HTTP/1.0 200 OK\r\n" +
+                                "Connection: close\r\n" +
                                 "Content-Type: multipart/x-mixed-replace; boundary=--frame\r\n" +
-                                "Cache-Control: no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0\r\n"+
-                                "Expires: -1\r\n"+
+                                "Cache-Control: no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0\r\n" +
+                                "Expires: -1\r\n" +
                                 "Pragma: no-cache\r\n\r\n").getBytes());
                 outputStream.flush();
                 while (!isCancelled()) {
                     if (latestJpegFrameData != null) {
-                        outputStream.write(("--frame\r\n"+
+                        long currentTime = System.currentTimeMillis();
+                        long elapsedTime = currentTime - lastFrameTime;
+                                                // Skip frame if we're running behind
+                        if (elapsedTime < frameInterval) {
+                            Thread.sleep(Math.max(1, frameInterval - elapsedTime));
+                        }
+                        outputStream.write(("--frame\r\n" +
                                 "Content-Type: image/jpeg\r\n").getBytes());
-                        outputStream.write(("Content-Length:"+latestJpegFrameData.length+"\r\n\r\n").getBytes());
+                        outputStream.write(("Content-Length:" + latestJpegFrameData.length + "\r\n\r\n").getBytes());
                         outputStream.write(latestJpegFrameData);
                         outputStream.write("\r\n".getBytes());
                         outputStream.flush();
-                        Thread.sleep(34);
+
+                       lastFrameTime = System.currentTimeMillis();
                     }
                 }
 
             } catch (Exception e) {
                 Log.e(TAG, "VideoFeedHandler.run: ", e);
-            }finally {
+            } finally {
                 try {
                     if (outputStream != null) {
                         outputStream.close();
