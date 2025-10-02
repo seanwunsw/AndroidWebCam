@@ -14,64 +14,64 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import com.seanw.webcam.ui.CameraScreen
-import com.seanw.webcam.ui.theme.SeCamTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.permissions.shouldShowRationale
+import com.seanw.webcam.ui.CameraScreen
+import com.seanw.webcam.ui.theme.SeCamTheme
 
 class MainActivity : ComponentActivity() {
-    
     private val viewModel: CameraViewModel by viewModels()
-    
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (!isGranted) {
-            Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
-            finish()
-            return@registerForActivityResult
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { isGranted: Boolean ->
+            if (!isGranted) {
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+                finish()
+                return@registerForActivityResult
+            }
+            viewModel.setCameraPermissionGranted(true)
+            viewModel.startCamera(this)
         }
-        viewModel.setCameraPermissionGranted(true)
-        viewModel.startCamera(this)
-    }
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Check camera permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
-            == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
             viewModel.setCameraPermissionGranted(true)
         } else {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        
+
         setContent {
             SeCamTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.background,
                 ) {
-                    CameraScreenWithPermission()
+                    cameraScreenWithPermission()
                 }
             }
         }
     }
-    
+
     @OptIn(ExperimentalPermissionsApi::class)
     @Composable
-    private fun CameraScreenWithPermission() {
+    private fun cameraScreenWithPermission() {
         val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
-        
+
         LaunchedEffect(cameraPermissionState.status) {
             if (cameraPermissionState.status.isGranted) {
                 viewModel.setCameraPermissionGranted(true)
                 viewModel.startCamera(this@MainActivity)
             }
         }
-        
+
         CameraScreen(
             viewModel = viewModel,
             onCameraClick = {
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
             onSettingsClick = {
                 // TODO: Implement settings functionality
                 Toast.makeText(this@MainActivity, "Settings not implemented yet", Toast.LENGTH_SHORT).show()
-            }
+            },
         )
     }
 }
